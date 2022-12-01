@@ -79,7 +79,7 @@ func (f *File) ReadZipReader(r *zipstream.Reader) (map[string][]byte, int, error
 
 // unzipToTemp unzip the zip entity to the system temporary directory and
 // returned the unzipped file path.
-func (f *File) unzipToTemp(r io.Reader) (string, error) {
+func (f *File) unzipToTemp(r *zipstream.Reader) (string, error) {
 	tmp, err := os.CreateTemp(os.TempDir(), "excelize-")
 	if err != nil {
 		return "", err

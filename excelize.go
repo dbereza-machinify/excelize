@@ -13,7 +13,6 @@
 package excelize
 
 import (
-	"archive/zip"
 	"bytes"
 	"encoding/xml"
 	"fmt"
@@ -25,6 +24,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/krolaw/zipstream"
 	"golang.org/x/net/html/charset"
 )
 
@@ -136,10 +136,6 @@ func newFile() *File {
 // OpenReader read data stream from io.Reader and return a populated
 // spreadsheet file.
 func OpenReader(r io.Reader, opts ...Options) (*File, error) {
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
 	f := newFile()
 	f.options = parseOptions(opts...)
 	if f.options.UnzipSizeLimit == 0 {
@@ -157,19 +153,8 @@ func OpenReader(r io.Reader, opts ...Options) (*File, error) {
 	if f.options.UnzipXMLSizeLimit > f.options.UnzipSizeLimit {
 		return nil, ErrOptionsUnzipSizeLimit
 	}
-	if bytes.Contains(b, oleIdentifier) {
-		if b, err = Decrypt(b, f.options); err != nil {
-			return nil, ErrWorkbookFileFormat
-		}
-	}
-	zr, err := zip.NewReader(bytes.NewReader(b), int64(len(b)))
-	if err != nil {
-		if len(f.options.Password) > 0 {
-			return nil, ErrWorkbookPassword
-		}
-		return nil, err
-	}
-	file, sheetCount, err := f.ReadZipReader(zr)
+	zsr := zipstream.NewReader(r)
+	file, sheetCount, err := f.ReadZipReader(zsr)
 	if err != nil {
 		return nil, err
 	}

@@ -1,7 +1,6 @@
 package excelize
 
 import (
-	"archive/zip"
 	"bytes"
 	"encoding/xml"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/krolaw/zipstream"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -363,13 +363,14 @@ func TestUnzipToTemp(t *testing.T) {
 		"0000000000000000\v\x00\x00\x00" +
 		"\x00\x0000PK\x05\x06000000\x05\x000000" +
 		"\v\x00\x00\x00\x00\x00")
-	z, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	z := zipstream.NewReader(bytes.NewReader(data))
+	_, err := z.Next()
 	assert.NoError(t, err)
 
-	_, err = f.unzipToTemp(z.File[0])
+	_, err = f.unzipToTemp(z)
 	require.Error(t, err)
 	assert.NoError(t, os.Chmod(os.TempDir(), 0o755))
 
-	_, err = f.unzipToTemp(z.File[0])
+	_, err = z.Next()
 	assert.EqualError(t, err, "EOF")
 }

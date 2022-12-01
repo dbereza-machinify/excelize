@@ -12,6 +12,7 @@ require (
 	golang.org/x/image v0.0.0-20220902085622-e7cb96979f69
 	golang.org/x/net v0.2.0
 	golang.org/x/text v0.4.0
+	github.com/krolaw/zipstream v0.0.0-20180621105154-0a2661891f94
 )
 
 require github.com/richardlehane/msoleps v1.0.3 // indirect

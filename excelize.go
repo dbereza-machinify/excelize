@@ -155,28 +155,30 @@ func OpenReader(r io.Reader, opts ...Options) (*File, error) {
 		return nil, ErrOptionsUnzipSizeLimit
 	}
 
-	br := bufio.NewReaderSize(r, len(oleIdentifier))
+	br := bufio.NewReader(r)
 	header, err := br.Peek(len(oleIdentifier))
 	if err != nil {
 		return nil, err
 	}
 
 	if bytes.Equal(header, oleIdentifier) {
-		b, err := io.ReadAll(r)
+		b, err := io.ReadAll(br)
 		if err != nil {
 			return nil, err
 		}
-
 		if b, err = Decrypt(b, f.options); err != nil {
 			return nil, ErrWorkbookFileFormat
 		}
 
-		r = bytes.NewBuffer(b)
+		br = bufio.NewReader(bytes.NewBuffer(b))
 	}
 
-	zsr := zipstream.NewReader(r)
+	zsr := zipstream.NewReader(br)
 	file, sheetCount, err := f.ReadZipReader(zsr)
 	if err != nil {
+		if len(f.options.Password) > 0 {
+			return nil, ErrWorkbookPassword
+		}
 		return nil, err
 	}
 

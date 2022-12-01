@@ -23,21 +23,29 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/krolaw/zipstream"
 )
 
 // ReadZipReader extract spreadsheet with given options.
-func (f *File) ReadZipReader(r *zip.Reader) (map[string][]byte, int, error) {
+func (f *File) ReadZipReader(r *zipstream.Reader) (map[string][]byte, int, error) {
 	var (
-		err     error
 		docPart = map[string]string{
 			"[content_types].xml":  defaultXMLPathContentTypes,
 			"xl/sharedstrings.xml": defaultXMLPathSharedStrings,
 		}
-		fileList   = make(map[string][]byte, len(r.File))
+		fileList   = make(map[string][]byte)
 		worksheets int
 		unzipSize  int64
 	)
-	for _, v := range r.File {
+	for {
+		v, err := r.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, 0, err
+		}
+
 		fileSize := v.FileInfo().Size()
 		unzipSize += fileSize
 		if unzipSize > f.options.UnzipSizeLimit {
@@ -48,7 +56,7 @@ func (f *File) ReadZipReader(r *zip.Reader) (map[string][]byte, int, error) {
 			fileName = partName
 		}
 		if strings.EqualFold(fileName, defaultXMLPathSharedStrings) && fileSize > f.options.UnzipXMLSizeLimit {
-			if tempFile, err := f.unzipToTemp(v); err == nil {
+			if tempFile, err := f.unzipToTemp(r); err == nil {
 				f.tempFiles.Store(fileName, tempFile)
 				continue
 			}
@@ -56,13 +64,13 @@ func (f *File) ReadZipReader(r *zip.Reader) (map[string][]byte, int, error) {
 		if strings.HasPrefix(fileName, "xl/worksheets/sheet") {
 			worksheets++
 			if fileSize > f.options.UnzipXMLSizeLimit && !v.FileInfo().IsDir() {
-				if tempFile, err := f.unzipToTemp(v); err == nil {
+				if tempFile, err := f.unzipToTemp(r); err == nil {
 					f.tempFiles.Store(fileName, tempFile)
 					continue
 				}
 			}
 		}
-		if fileList[fileName], err = readFile(v); err != nil {
+		if fileList[fileName], err = readFile(v, r); err != nil {
 			return nil, 0, err
 		}
 	}
@@ -71,19 +79,12 @@ func (f *File) ReadZipReader(r *zip.Reader) (map[string][]byte, int, error) {
 
 // unzipToTemp unzip the zip entity to the system temporary directory and
 // returned the unzipped file path.
-func (f *File) unzipToTemp(zipFile *zip.File) (string, error) {
+func (f *File) unzipToTemp(r io.Reader) (string, error) {
 	tmp, err := os.CreateTemp(os.TempDir(), "excelize-")
 	if err != nil {
 		return "", err
 	}
-	rc, err := zipFile.Open()
-	if err != nil {
-		return tmp.Name(), err
-	}
-	if _, err = io.Copy(tmp, rc); err != nil {
-		return tmp.Name(), err
-	}
-	if err = rc.Close(); err != nil {
+	if _, err = io.Copy(tmp, r); err != nil {
 		return tmp.Name(), err
 	}
 	return tmp.Name(), tmp.Close()
@@ -133,15 +134,11 @@ func (f *File) saveFileList(name string, content []byte) {
 }
 
 // Read file content as string in an archive file.
-func readFile(file *zip.File) ([]byte, error) {
-	rc, err := file.Open()
-	if err != nil {
-		return nil, err
-	}
-	dat := make([]byte, 0, file.FileInfo().Size())
+func readFile(v *zip.FileHeader, r *zipstream.Reader) ([]byte, error) {
+	dat := make([]byte, 0, v.FileInfo().Size())
 	buff := bytes.NewBuffer(dat)
-	_, _ = io.Copy(buff, rc)
-	return buff.Bytes(), rc.Close()
+	_, err := io.Copy(buff, r)
+	return buff.Bytes(), err
 }
 
 // SplitCellName splits cell name to column name and row number.

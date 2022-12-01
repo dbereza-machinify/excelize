@@ -214,7 +214,7 @@ func TestCharsetTranscoder(t *testing.T) {
 
 func TestOpenReader(t *testing.T) {
 	_, err := OpenReader(strings.NewReader(""))
-	assert.EqualError(t, err, zip.ErrFormat.Error())
+	assert.EqualError(t, err, io.EOF.Error())
 	_, err = OpenReader(bytes.NewReader(oleIdentifier), Options{Password: "password", UnzipXMLSizeLimit: UnzipSizeLimit + 1})
 	assert.EqualError(t, err, ErrWorkbookFileFormat.Error())
 

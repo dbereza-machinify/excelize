@@ -13,6 +13,7 @@
 package excelize
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/xml"
 	"fmt"
@@ -153,11 +154,32 @@ func OpenReader(r io.Reader, opts ...Options) (*File, error) {
 	if f.options.UnzipXMLSizeLimit > f.options.UnzipSizeLimit {
 		return nil, ErrOptionsUnzipSizeLimit
 	}
+
+	br := bufio.NewReaderSize(r, len(oleIdentifier))
+	header, err := br.Peek(len(oleIdentifier))
+	if err != nil {
+		return nil, err
+	}
+
+	if bytes.Equal(header, oleIdentifier) {
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return nil, err
+		}
+
+		if b, err = Decrypt(b, f.options); err != nil {
+			return nil, ErrWorkbookFileFormat
+		}
+
+		r = bytes.NewBuffer(b)
+	}
+
 	zsr := zipstream.NewReader(r)
 	file, sheetCount, err := f.ReadZipReader(zsr)
 	if err != nil {
 		return nil, err
 	}
+
 	f.SheetCount = sheetCount
 	for k, v := range file {
 		f.Pkg.Store(k, v)
